@@ -59,6 +59,7 @@ services:
   schema-registry:
     image: confluentinc/cp-schema-registry:6.2.0
     container_name: kuc-schema-registry
+    restart: always
     depends_on:
       - zookeeper
       - kafka
@@ -139,3 +140,24 @@ services:
       MYSQL_DATABASE: example
     volumes:
       - ./mysql_init.sql:/docker-entrypoint-initdb.d/init.sql
+
+  akhq:
+    image: tchiotludo/akhq
+    container_name: kuc-akhq
+    ports:
+      - 8080:8080
+    links:
+      - kafka
+      - schema-registry
+    environment:
+      AKHQ_CONFIGURATION: |
+        akhq:
+          connections:
+            docker-kafka-server:
+              properties:
+                bootstrap.servers: "kafka:29092"
+              schema-registry:
+                url: "http://schema-registry:8081"
+              connect:
+                - name: "kafka-connect-01"
+                  url: "http://kafka-connect-01:8083"
