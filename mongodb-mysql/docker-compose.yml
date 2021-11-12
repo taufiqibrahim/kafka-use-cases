@@ -1,4 +1,4 @@
-version: "3"
+version: "3.8"
 services:
 
   zookeeper:
@@ -82,7 +82,9 @@ services:
     links:
       - schema-registry
       - kafka
-      - mongo
+      - mongo1
+      - mongo2
+      - mongo3
       - mysql
     ports:
       - 8083:8083
@@ -104,29 +106,38 @@ services:
       CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: "1"
       CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: "1"
       CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: "1"
+      CONNECT_PLUGIN_PATH: "/usr/share/java,/usr/share/confluent-hub-components"
 
-  mongo:
-    container_name: kuc-mongo
+  mongo1:
     image: mongo
-    restart: always
+    container_name: kuc-mongo1
+    command: ["--replSet", "my-replica-set", "--bind_ip_all", "--port", "30001"]
+    volumes:
+      - ./data/mongo-1:/data/db
     ports:
-      - 27017:27017
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: root
-      MONGO_INITDB_ROOT_PASSWORD: example
+      - 30001:30001
+    healthcheck:
+      test: test $$(echo "rs.initiate({_id:'my-replica-set',members:[{_id:0,host:\"mongo1:30001\"},{_id:1,host:\"mongo2:30002\"},{_id:2,host:\"mongo3:30003\"}]}).ok || rs.status().ok" | mongo --port 30001 --quiet) -eq 1
+      interval: 10s
+      start_period: 30s
 
-  mongo-express:
-    container_name: kuc-mongo-express
-    image: mongo-express
-    restart: always
+  mongo2:
+    image: mongo
+    container_name: kuc-mongo2
+    command: ["--replSet", "my-replica-set", "--bind_ip_all", "--port", "30002"]
+    volumes:
+      - ./data/mongo-2:/data/db
     ports:
-      - 18081:8081
-    environment:
-      ME_CONFIG_MONGODB_ADMINUSERNAME: root
-      ME_CONFIG_MONGODB_ADMINPASSWORD: example
-      ME_CONFIG_MONGODB_URL: mongodb://root:example@mongo:27017/
-    depends_on:
-      - mongo
+      - 30002:30002
+
+  mongo3:
+    image: mongo
+    container_name: kuc-mongo3
+    command: ["--replSet", "my-replica-set", "--bind_ip_all", "--port", "30003"]
+    volumes:
+      - ./data/mongo-3:/data/db
+    ports:
+      - 30003:30003
 
   mysql:
     container_name: kuc-mysql
@@ -137,6 +148,7 @@ services:
       - 3306:3306
     environment:
       MYSQL_ROOT_PASSWORD: example
+      MYSQL_ROOT_HOST: '%'
       MYSQL_DATABASE: example
     volumes:
       - ./mysql_init.sql:/docker-entrypoint-initdb.d/init.sql
